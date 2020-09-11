@@ -1,0 +1,6 @@
+*.pyc
+test
+test2
+test3
+.vscode
+*.pth
