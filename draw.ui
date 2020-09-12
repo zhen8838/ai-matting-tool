@@ -159,6 +159,25 @@
           </property>
          </widget>
         </item>
+        <item>
+         <widget class="QCheckBox" name="check_bx">
+          <property name="font">
+           <font>
+            <family>YaHei Consolas Hybrid</family>
+            <pointsize>12</pointsize>
+           </font>
+          </property>
+          <property name="tabletTracking">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>AUTO</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>

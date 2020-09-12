@@ -55,10 +55,13 @@ class DrawLabel(QLabel):
     if mask_pixmap != None:
       mask = mask_pixmap.mask()
       sz = mask.size()
-      # using mask and SourceOut_mode cutout the target region. 
+      # using mask and SourceOut_mode cutout the target region.
       self.trans_pix.fill(QColor(0, 255, 0, 128))
       painter = QPainter(self.trans_pix)
       painter.setCompositionMode(QPainter.CompositionMode_SourceOut)
+      painter.drawPixmap(0, 0, sz.width(), sz.height(), mask)
+      # NOTE 不知为何SourceOut后存在暗色区域，再利用Clear消除
+      painter.setCompositionMode(QPainter.CompositionMode_Clear)
       painter.drawPixmap(0, 0, sz.width(), sz.height(), mask)
       painter.end()
     self.drawingPath.clear()
@@ -146,7 +149,6 @@ class ScollWidget(QWidget):
     if (self.scaleFactor * factor) > 0.3 and (self.scaleFactor * factor) < 3:
       self.scaleFactor *= factor
       imageLabel.resize(self.scaleFactor * imageLabel.pixmap().size())
-      scaleFactor = self.scaleFactor
 
   def scaleScrollBar(self, factor):
     self.adjustScrollBar(self.shbar, factor)
@@ -157,12 +159,13 @@ class ScollWidget(QWidget):
                            + ((factor - 1) * scrollBar.pageStep() / 2)))
 
   def posOffset(self, event: QMouseEvent):
-    return event.pos() + QPoint(self.shbar.value(), self.svbar.value()) / self.scaleFactor
+    pos = (event.pos() + QPoint(self.shbar.value(), self.svbar.value())) / self.scaleFactor
+    return pos
 
   def mouseMoveEvent(self, event: QMouseEvent) -> None:
     if event.buttons() == Qt.LeftButton:
       curpos = self.posOffset(event)
-      self.imageLabel.drawingPath.lineTo(curpos / self.scaleFactor)
+      self.imageLabel.drawingPath.lineTo(curpos)
       self.imageLabel.update()
 
     elif event.buttons() == Qt.RightButton:

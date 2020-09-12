@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QCoreApplication, QThread, pyqtSignal, QDir
+from waiting import WaitingDialog
 import sys
 import os
 sys.path.insert(0, os.getcwd())
@@ -16,11 +17,7 @@ import torch
 class ImageFileList(object):
   def __init__(self, current_file: Path, file_list: List[Path]) -> None:
     self.list = file_list
-    idx = file_list.index(current_file)
-    # TODO should sorted, keep the list as same sequence
-    # 初始化时将对应条目移动至第一个
-    self.list.insert(0, self.list.pop(idx))
-    self.idx = 0
+    self.idx = file_list.index(current_file)
     self.size = len(self.list)
 
   def __len__(self):
@@ -58,29 +55,14 @@ def qimg2np(im: QImage) -> np.ndarray:
   return im_np
 
 
-class Ui_DrawTask(Ui_draw.Ui_MainWindow):
-  def setupCustom(self):
-    self.input_list: ImageFileList = None
-    self.output_dir: Path = None
-    self.cur_path: Path = None
-    self.export_path: Path = None
-    self.cur_np_im: np.ndarray = None
-    self.model = torch.load('./final-all.pth')
-    self.model.to(torch.device('cpu'))
-    self.model.eval()
+class AiMattingThread(QThread):
+  finished = pyqtSignal(QPixmap)
 
-  def setupSolt(self):
-    self.set_state_bt()
-    self.set_input_bt()
-    self.set_output_bt()
-    self.set_next_past_bt()
-    self.set_pen_size_bt()
-    self.set_export_bt()
+  def setImage(self, im):
+    self.im = im
 
-  @staticmethod
-  def read_im(img_path):
-    im = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
-    return im
+  def setModel(self, model):
+    self.model = model
 
   @staticmethod
   def ai_matting_mask(im: np.ndarray, model: torch.nn.Module) -> np.ndarray:
@@ -109,21 +91,67 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
       mask = 255 * sigmod
     return mask > 1
 
+  def run(self) -> None:
+    mask = self.ai_matting_mask(self.im, self.model)
+    h, w = self.im.shape[:2]
+    mask_im = (mask[..., None] *
+               np.tile(np.reshape(
+                   np.array([0, 128, 0, 128], dtype='uint8'),
+                   [1, 1, 4]), [h, w, 1]))
+    mask_pixmap = QPixmap.fromImage(np2qimg(mask_im))
+    self.finished.emit(mask_pixmap)
+
+
+class Ui_DrawTask(Ui_draw.Ui_MainWindow):
+  def setupCustom(self):
+    self.input_list: ImageFileList = None
+    self.output_dir: Path = None
+    self.cur_path: Path = None
+    self.export_path: Path = None
+    self.cur_np_im: np.ndarray = None
+    self.mask_pixmap: QPixmap = None
+    self.model = torch.load('./final-all.pth')
+    self.model.to(torch.device('cpu'))
+    self.model.eval()
+    self.aimattingthread = AiMattingThread(None)
+    self.aimattingthread.setModel(self.model)
+    self.waitdialog = WaitingDialog(self.centralwidget)
+
+    def _finshed(pixmap):
+      # TODO 更改实现方式
+      self.waitdialog.close()
+      self.mask_pixmap = pixmap
+      pix = QPixmap.fromImage(np2qimg(self.cur_np_im))
+      # TODO 添加背景色替换
+      self.draw_lb.setPixmap(pix, self.mask_pixmap)
+      self.draw_lb.setDrawLabelState('enable')
+
+    self.aimattingthread.finished.connect(_finshed)
+
+  def setupSolt(self):
+    self.set_state_bt()
+    self.set_input_bt()
+    self.set_output_bt()
+    self.set_next_past_bt()
+    self.set_pen_size_bt()
+    self.set_export_bt()
+
+  @staticmethod
+  def read_im(img_path):
+    im = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+    return im
+
   def set_draw_lb_background(self, img_path):
     self.cur_np_im = self.read_im(img_path)
-    mask_pixmap = None
-    if True:  # TODO add button to control weather use ai model
-      # TODO add wait anime for sync 
-      mask = self.ai_matting_mask(self.cur_np_im, self.model)
-      h, w = self.cur_np_im.shape[:2]
-      mask_im = (mask[..., None] *
-                 np.tile(np.reshape(
-                     np.array([0, 128, 0, 128], dtype='uint8'),
-                     [1, 1, 4]), [h, w, 1]))
-      mask_pixmap = QPixmap.fromImage(np2qimg(mask_im))
-    pix = QPixmap.fromImage(np2qimg(self.cur_np_im))
-    self.draw_lb.setPixmap(pix, mask_pixmap)
-    self.draw_lb.setDrawLabelState('enable')
+    self.mask_pixmap = None
+    if self.check_bx.isChecked():
+      self.aimattingthread.setImage(self.cur_np_im)
+      self.waitdialog.show()
+      self.aimattingthread.start()
+    else:
+      pix = QPixmap.fromImage(np2qimg(self.cur_np_im))
+      self.draw_lb.setPixmap(pix, self.mask_pixmap)
+      self.draw_lb.setDrawLabelState('enable')
 
   def set_res_lb_background(self, img_path):
     np_im = self.read_im(img_path)
@@ -168,8 +196,9 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
       if f_path != '':
         f_path = Path(f_path)
         input_dir: Path = f_path.parent
-        f_list = sum([list(input_dir.glob(pattern))
-                      for pattern in "*.jpg *.jpeg *.tif *.bmp *.png".split(' ')], [])
+        qdir = QDir(input_dir.as_posix())
+        qdir.setNameFilters("*.jpg *.jpeg *.tif *.bmp *.png".split(' '))
+        f_list = [input_dir / f.fileName() for f in qdir.entryInfoList()]
         self.input_list = ImageFileList(f_path, f_list)
         self.cur_path = self.input_list.curt()
         self.input_lb.setText(self.cur_path.parent.as_posix())
@@ -215,12 +244,6 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
                                list(self.cur_np_im.shape[:2]) + [1]) * mask
 
         self.cur_np_im_masked = valid_part + invalid_part
-        # import matplotlib.pyplot as plt
-        # plt.imsave('/tmp/cur_np_im.jpg', self.cur_np_im)
-        # plt.imsave('/tmp/drawed_im.jpg', drawed_im[..., 1])
-        # plt.imsave('/tmp/valid_part.jpg', valid_part)
-        # plt.imsave('/tmp/invalid_part.jpg', invalid_part)
-
         cv2.imwrite(self.export_path.as_posix(),
                     cv2.cvtColor(self.cur_np_im_masked, cv2.COLOR_RGB2BGR))
         self.set_res_lb_background(self.export_path.as_posix())
