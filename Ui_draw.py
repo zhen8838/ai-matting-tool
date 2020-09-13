@@ -198,7 +198,13 @@ class Ui_MainWindow(object):
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1000, 20))
         self.menubar.setObjectName("menubar")
+        self.menumenu = QtWidgets.QMenu(self.menubar)
+        self.menumenu.setObjectName("menumenu")
         MainWindow.setMenuBar(self.menubar)
+        self.actionset_color = QtWidgets.QAction(MainWindow)
+        self.actionset_color.setObjectName("actionset_color")
+        self.menumenu.addAction(self.actionset_color)
+        self.menubar.addAction(self.menumenu.menuAction())
 
         self.retranslateUi(MainWindow)
         self.pen_size_sd.valueChanged['int'].connect(self.pen_size_lb.setNum)
@@ -218,5 +224,7 @@ class Ui_MainWindow(object):
         self.past_bt.setText(_translate("MainWindow", "下一张"))
         self.input_lb.setText(_translate("MainWindow", "请选择输入文件"))
         self.output_lb.setText(_translate("MainWindow", "请选择输出文件夹"))
+        self.menumenu.setTitle(_translate("MainWindow", "menu"))
+        self.actionset_color.setText(_translate("MainWindow", "set color"))
 
 from scollwidget import ScollWidget

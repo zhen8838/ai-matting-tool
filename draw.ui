@@ -341,7 +341,19 @@
      <height>20</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menumenu">
+    <property name="title">
+     <string>menu</string>
+    </property>
+    <addaction name="actionset_color"/>
+   </widget>
+   <addaction name="menumenu"/>
   </widget>
+  <action name="actionset_color">
+   <property name="text">
+    <string>set color</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

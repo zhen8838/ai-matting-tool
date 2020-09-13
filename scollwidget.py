@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QWidget, QLabel, QScrollArea, QSizePolicy, QMainWindow, QApplication
-from PyQt5.QtGui import QPainter, QPixmap, QImage, QPen, QBrush, QColor, QPalette, QMouseEvent, QGuiApplication, QPaintEvent, QResizeEvent, QWheelEvent
+from PyQt5.QtGui import QPainter, QPainterPath, QPixmap, QImage, QPen, QBrush, QColor, QPalette, QMouseEvent, QGuiApplication, QPaintEvent, QResizeEvent, QWheelEvent
 from PyQt5.QtCore import QPoint, Qt
 from enum import Enum
 from typing import Union
@@ -47,6 +47,14 @@ class DrawLabel(QLabel):
     self.pen.setColor(QColor(0, 128, 0, 1))
     self.pen.setStyle(Qt.SolidLine)
     self.drawingPath = PaintPath()
+    """ 设置背景图 """
+    self.m_tile = QPixmap(128, 128)
+    self.m_tile.fill(Qt.white)
+    pt = QPainter(self.m_tile)
+    color = QColor(230, 230, 230)
+    pt.fillRect(0, 0, 64, 64, color)
+    pt.fillRect(64, 64, 64, 64, color)
+    pt.end()
 
   def setPixmap(self, pixmap: QPixmap, mask_pixmap: QPixmap = None) -> None:
     self.currn_pix = pixmap
@@ -73,6 +81,23 @@ class DrawLabel(QLabel):
 
   def paintEvent(self, event: QPaintEvent) -> None:
     sz = self.size()
+    """ draw backgroud """
+    static_image = QPixmap(sz)
+    bpainter = QPainter()
+    bpainter.begin(static_image)
+    o = 10
+    bg = self.palette().brush(QPalette.Window)
+    bpainter.fillRect(0, 0, o, o, bg)
+    bpainter.fillRect(self.width() - o, 0, o, o, bg)
+    bpainter.fillRect(0, self.height() - o, o, o, bg)
+    bpainter.fillRect(self.width() - o, self.height() - o, o, o, bg)
+    bpainter.setClipRect(self.rect())
+    bpainter.setRenderHint(QPainter.Antialiasing)
+    bpainter.drawTiledPixmap(self.rect(), self.m_tile)
+    bpainter.end()
+    bpainter.begin(self)
+    bpainter.drawPixmap(self.rect(), static_image)
+
     if self.state == self.State.disable:
       painter = QPainter()
       painter.begin(self)

@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt, QCoreApplication, QThread, pyqtSignal, QDir
 from waiting import WaitingDialog
+from inputcolor import InputColor
 import sys
 import os
 sys.path.insert(0, os.getcwd())
@@ -12,6 +13,8 @@ from operator import add, sub
 import numpy as np
 import cv2
 import torch
+from easydict import EasyDict
+import yaml
 
 
 class ImageFileList(object):
@@ -102,14 +105,32 @@ class AiMattingThread(QThread):
     self.finished.emit(mask_pixmap)
 
 
+class MyMainWindow(QMainWindow):
+
+  def setConfigDict(self, config: EasyDict):
+    self.config = config
+
+  def closeEvent(self, event) -> None:
+    with open('./config.yml', 'w') as f:
+      yaml.safe_dump(self.config.__dict__, f)
+
+    super().closeEvent(event)
+
+
 class Ui_DrawTask(Ui_draw.Ui_MainWindow):
-  def setupCustom(self):
+  def setupCustom(self, MainWindow: MyMainWindow):
+    """ global variable  """
+    self.MainWindow = MainWindow
     self.input_list: ImageFileList = None
     self.output_dir: Path = None
     self.cur_path: Path = None
     self.export_path: Path = None
     self.cur_np_im: np.ndarray = None
     self.mask_pixmap: QPixmap = None
+    with open('config.yml') as f:
+      self.config = EasyDict(yaml.safe_load(f))
+    self.MainWindow.setConfigDict(self.config)
+
     self.model = torch.load('./final-all.pth')
     self.model.to(torch.device('cpu'))
     self.model.eval()
@@ -122,7 +143,6 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
       self.waitdialog.close()
       self.mask_pixmap = pixmap
       pix = QPixmap.fromImage(np2qimg(self.cur_np_im))
-      # TODO 添加背景色替换
       self.draw_lb.setPixmap(pix, self.mask_pixmap)
       self.draw_lb.setDrawLabelState('enable')
 
@@ -135,11 +155,23 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
     self.set_next_past_bt()
     self.set_pen_size_bt()
     self.set_export_bt()
+    self.set_color_mb()
 
   @staticmethod
   def read_im(img_path):
-    im = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+    im = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+    ch = im.shape[-1]
+    im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB if ch == 3 else cv2.COLOR_BGRA2RGBA)
     return im
+
+  def set_color_mb(self) -> None:
+    """连接menu bar与set color的操作
+    """
+    def _set_color():
+      self.config.export_color = InputColor.getColors(self.centralwidget, self.config.export_color)
+      self.MainWindow.setConfigDict(self.config)
+
+    self.actionset_color.triggered.connect(_set_color)
 
   def set_draw_lb_background(self, img_path):
     self.cur_np_im = self.read_im(img_path)
@@ -176,7 +208,7 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
   def change_matting_image(self):
     self.filename_lb.setText(self.cur_path.name)
     self.set_draw_lb_background(self.cur_path.as_posix())
-    self.export_path = (self.output_dir / self.cur_path.name)
+    self.export_path = (self.output_dir / (self.cur_path.stem + '.png'))
     if self.export_path.exists():
       self.set_res_lb_background(self.export_path.as_posix())
     else:
@@ -237,15 +269,24 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
     def export_im():
       if self.output_dir != None and self.cur_path != None:
         drawed_im = qimg2np(self.draw_lb.exportMaskImage())
+        # the region need masked value is 1, other is 0
         mask = np.expand_dims(drawed_im[..., 1] > 0, -1)
 
         valid_part = self.cur_np_im.copy() * np.logical_not(mask)
-        invalid_part = np.tile(np.array([[[255, 255, 255]]], 'uint8'),
+        rgb = np.reshape(np.array(self.config.export_color[:3], 'uint8'), [1, 1, 3])
+        alpha = np.reshape(np.array(self.config.export_color[3:4], 'uint8'), [1, 1, 1])
+        invalid_part = np.tile(rgb,
                                list(self.cur_np_im.shape[:2]) + [1]) * mask
+        valid_alpha = np.tile(np.array([[[255]]], 'uint8'),
+                              list(self.cur_np_im.shape[:2]) + [1]) * np.logical_not(mask)
+        invalid_alpha = np.tile(alpha,
+                                list(self.cur_np_im.shape[:2]) + [1]) * mask
 
         self.cur_np_im_masked = valid_part + invalid_part
+        alpha_masked = valid_alpha + invalid_alpha
         cv2.imwrite(self.export_path.as_posix(),
-                    cv2.cvtColor(self.cur_np_im_masked, cv2.COLOR_RGB2BGR))
+                    np.concatenate((cv2.cvtColor(self.cur_np_im_masked, cv2.COLOR_RGB2BGR),
+                                    alpha_masked), -1))
         self.set_res_lb_background(self.export_path.as_posix())
         # print(f'export success:{export_path}')
       else:
@@ -259,10 +300,10 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
 
 if __name__ == '__main__':
   app = QApplication(sys.argv)
-  MainWindow = QMainWindow()
+  MainWindow = MyMainWindow()
   ui = Ui_DrawTask()
   ui.setupUi(MainWindow)
-  ui.setupCustom()
+  ui.setupCustom(MainWindow)
   ui.setupSolt()
   MainWindow.show()
   sys.exit(app.exec_())
