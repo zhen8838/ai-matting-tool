@@ -186,8 +186,9 @@ class Ui_DrawTask(Ui_draw.Ui_MainWindow):
       self.draw_lb.setDrawLabelState('enable')
 
   def set_res_lb_background(self, img_path):
-    np_im = self.read_im(img_path)
-    self.resut_lb.setPixmap(QPixmap.fromImage(np2qimg(np_im)), None)
+    # np_im = self.read_im(img_path)
+    # self.resut_lb.setPixmap(QPixmap.fromImage(np2qimg(np_im)), None)
+    self.resut_lb.setPixmap(QPixmap(img_path), None)
 
   def set_pen_size_bt(self):
     self.pen_size_sd.valueChanged['int'].connect(self.draw_lb.setPenSize)

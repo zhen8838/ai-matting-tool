@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QWidget, QLabel, QScrollArea, QSizePolicy, QMainWindow, QApplication
 from PyQt5.QtGui import QPainter, QPainterPath, QPixmap, QImage, QPen, QBrush, QColor, QPalette, QMouseEvent, QGuiApplication, QPaintEvent, QResizeEvent, QWheelEvent
-from PyQt5.QtCore import QPoint, Qt
+from PyQt5.QtCore import QPoint, QRect, Qt
 from enum import Enum
 from typing import Union
 
@@ -35,15 +35,17 @@ class DrawLabel(QLabel):
 
   def __init__(self, parent) -> None:
     super().__init__(parent)
-    self.begin_point = QPoint()
-    self.end_point = QPoint()
+    self.cur_point = QPoint()
+    self.mousePressed = False
     self.drawmode = self.DrawMode.line
     self.state = self.State.disable
     self.currn_pix = None
     self.trans_pix = None
     self.pen = QPen()
     self.pen.setCapStyle(Qt.RoundCap)
-    self.pen.setWidth(20)
+    self.pen_size = 20
+    self.scaleFactor = 1.
+    self.pen.setWidth(self.pen_size / self.scaleFactor)
     self.pen.setColor(QColor(0, 128, 0, 1))
     self.pen.setStyle(Qt.SolidLine)
     self.drawingPath = PaintPath()
@@ -77,10 +79,15 @@ class DrawLabel(QLabel):
     self.adjustSize()
 
   def setPenSize(self, size: int):
-    self.pen.setWidth(size)
+    self.pen_size = size
+
+  def setScaleFactor(self, scaleFactor: float):
+    self.scaleFactor = scaleFactor
 
   def paintEvent(self, event: QPaintEvent) -> None:
     sz = self.size()
+    pen_width = int(self.pen_size / self.scaleFactor)
+    self.pen.setWidth(pen_width)
     """ draw backgroud """
     static_image = QPixmap(sz)
     bpainter = QPainter()
@@ -118,6 +125,13 @@ class DrawLabel(QLabel):
       painter2.begin(self)
       painter2.drawPixmap(0, 0, sz.width(), sz.height(), self.currn_pix)
       painter2.drawPixmap(0, 0, sz.width(), sz.height(), self.trans_pix)
+      if self.mousePressed:
+        painter2.setPen(QPen(Qt.SolidLine))
+        painter2.setBrush(QBrush(QColor(255, 255, 255, 0), Qt.SolidPattern))
+        painter2.setRenderHint(QPainter.Antialiasing, True)
+        painter2.drawEllipse(self.cur_point,
+                             int((pen_width + 1) / 2),
+                             int((pen_width + 1) / 2))
       painter2.end()
 
 
@@ -191,6 +205,7 @@ class ScollWidget(QWidget):
     if event.buttons() == Qt.LeftButton:
       curpos = self.posOffset(event)
       self.imageLabel.drawingPath.lineTo(curpos)
+      self.imageLabel.cur_point = event.pos() + QPoint(self.shbar.value(), self.svbar.value())
       self.imageLabel.update()
 
     elif event.buttons() == Qt.RightButton:
@@ -206,6 +221,7 @@ class ScollWidget(QWidget):
     if event.button() == Qt.LeftButton:
       curpos = self.posOffset(event)
       self.imageLabel.drawingPath.moveTo(curpos)
+      self.imageLabel.mousePressed = True
 
     elif event.button() == Qt.RightButton:
       self.begin_point = event.pos()
@@ -214,6 +230,7 @@ class ScollWidget(QWidget):
     if event.button() == Qt.LeftButton:
       curpos = self.posOffset(event)
       self.imageLabel.drawingPath.lineTo(curpos)
+      self.imageLabel.mousePressed = False
       self.imageLabel.update()
       pass
 
@@ -224,6 +241,7 @@ class ScollWidget(QWidget):
         self.zoomIn()
       elif delta < 0:
         self.zoomOut()
+      self.imageLabel.setScaleFactor(self.scaleFactor)
 
   def resizeEvent(self, event: QResizeEvent) -> None:
     self.scrollArea.resize(self.size())
