@@ -6,12 +6,13 @@
 
 
 [source,shell]
----
+----
 conda create -n torch python=3.7.4 -y
 conda activate torch
 conda install pytorch pyqt opencv PyYAML -y
 pip install easydict 
----
+----
+
 
 Download AI model from https://share.weiyun.com/kudp0a4f[WeiYun], Then put it into `ai-matting-tool/`
 
@@ -19,10 +20,9 @@ Download AI model from https://share.weiyun.com/kudp0a4f[WeiYun], Then put it in
 
 
 [source,shell]
-.Command
----
+----
 python main.py
----
+----
 
 * menu:主界面[修补] : switch `DrawMode`
 * menu:主界面[导出] : export image to target path
