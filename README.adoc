@@ -17,6 +17,13 @@ Download AI model from https://share.weiyun.com/kudp0a4f[WeiYun], Then put it in
 
 == Usage
 
+
+[source,shell]
+.Command
+---
+python main.py
+---
+
 * menu:主界面[修补] : switch `DrawMode`
 * menu:主界面[导出] : export image to target path
 * menu:菜单[颜色设置] : setup export image backgroud color
