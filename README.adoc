@@ -1,0 +1,38 @@
+= AI Matting Tool
+:experimental:
+:imagesdir: asset
+
+== Install
+
+
+[source,shell]
+---
+conda create -n torch python=3.7.4 -y
+conda activate torch
+conda install pytorch pyqt opencv PyYAML -y
+pip install easydict 
+---
+
+Download AI model from 
+
+== Usage
+
+* menu:菜单[颜色设置] : setup export image backgroud color
+
+.KeyMap
+|===
+|Shortcut | Purpose
+
+|kbd:[Left Mouse Button] |`Draw` or `Clean`
+|kbd:[Right Mouse Button] | `Drag` 
+|kbd:[Ctrl+Wheel] |`Zoom In` or `Zoom In`
+|===
+
+== Illustration
+
+image::demo.gif[]
+
+== Credits
+
+* https://github.com/backseason/PoolNet[A Simple Pooling-Based Design for Real-Time Salient Object Detection]
+

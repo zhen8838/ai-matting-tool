@@ -130,8 +130,8 @@ class DrawLabel(QLabel):
         painter2.setBrush(QBrush(QColor(255, 255, 255, 0), Qt.SolidPattern))
         painter2.setRenderHint(QPainter.Antialiasing, True)
         painter2.drawEllipse(self.cur_point,
-                             int((pen_width + 1) / 2),
-                             int((pen_width + 1) / 2))
+                             self.pen_size // 2,
+                             self.pen_size // 2)
       painter2.end()
 
 
@@ -161,7 +161,7 @@ class ScollWidget(QWidget):
     self.scrollArea.setVisible(True)
 
   def setPenSize(self, size: int):
-    self.imageLabel.pen.setWidth(size)
+    self.imageLabel.setPenSize(size)
 
   def setDrawLabelState(self, state: DrawLabel.State):
     self.imageLabel.state = self.imageLabel.State[state]
